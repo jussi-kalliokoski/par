@@ -1,0 +1,26 @@
+name: "CI"
+on: [push]
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Test on go ${{ matrix.go_version }} ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go_version: [1.18]
+        os: [ubuntu-latest]
+    steps:
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go_version }}
+        id: go
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: latest
+      - name: Test
+        run: go test -v -cover ./...
