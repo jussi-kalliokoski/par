@@ -184,29 +184,44 @@ func Any[T any](values []T, predicate func(T) bool) bool {
 	}
 
 	partitions, partitionSize := parts(values)
-	results := make(chan bool)
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(partitions)
 	for p := 0; p < partitions; p++ {
 		start := partitionSize * p
 		end := start + partitionSize
 		if p == partitions-1 {
 			end = len(values)
 		}
-		go func(start, end int) {
+		go func() {
+			defer wg.Done()
+
 			for i := start; i < end; i++ {
-				if predicate(values[i]) {
-					results <- true
+				select {
+				case <-done:
 					return
+				default:
+					if predicate(values[i]) {
+						close(done)
+						return
+					}
 				}
 			}
-			results <- false
-		}(start, end)
+		}()
 	}
 
-	var found bool
-	for p := 0; p < partitions; p++ {
-		found = found || <-results
+	// Wait to ensure that all processing goroutines have exited otherwise
+	// we could trigger a data race in the caller due use of predicate or values
+	// after we return.
+	wg.Wait()
+
+	select {
+	case <-done:
+		return true
+	default:
+		return false
 	}
-	return found
 }
 
 // All returns a boolean indicating if predicate returns true for all of the
