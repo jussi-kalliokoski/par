@@ -16,7 +16,6 @@
 package par
 
 import (
-	"runtime"
 	"sync"
 )
 
@@ -29,15 +28,12 @@ func Map[In, Out any](values []In, transform func(In) Out) []Out {
 	if len(values) == 0 {
 		return []Out(nil)
 	}
-	partitions := runtime.GOMAXPROCS(0)
-	if partitions > len(values) {
-		partitions = len(values)
-	}
-	partitionSize := len(values) / partitions
+
+	partitions, partitionSize := parts(values)
 	result := make([]Out, len(values))
 	var wg sync.WaitGroup
+	wg.Add(partitions)
 	for p := 0; p < partitions; p++ {
-		wg.Add(1)
 		start := partitionSize * p
 		end := start + partitionSize
 		if p == partitions-1 {
@@ -51,6 +47,7 @@ func Map[In, Out any](values []In, transform func(In) Out) []Out {
 		}(start, end)
 	}
 	wg.Wait()
+
 	return result
 }
 
@@ -68,11 +65,8 @@ func Filter[T any](values []T, predicate func(T) bool) []T {
 	if len(values) == 0 {
 		return []T(nil)
 	}
-	partitions := runtime.GOMAXPROCS(0)
-	if partitions > len(values) {
-		partitions = len(values)
-	}
-	partitionSize := len(values) / partitions
+
+	partitions, partitionSize := parts(values)
 	bitmapSize := partitionSize/64 + 1
 	lastBitmapSize := (len(values)-(partitions-1)*partitionSize)/64 + 1
 	fullBitmap := make([]uint64, bitmapSize*(partitions-1)+lastBitmapSize)
@@ -83,7 +77,9 @@ func Filter[T any](values []T, predicate func(T) bool) []T {
 		offset int
 		count  int
 	}, partitions)
+
 	var wg sync.WaitGroup
+	wg.Add(partitions)
 	for p := range jobs {
 		jobs[p].bitmap = fullBitmap[bitmapSize*p:]
 		jobs[p].start = p * partitionSize
@@ -91,7 +87,6 @@ func Filter[T any](values []T, predicate func(T) bool) []T {
 		if p == partitions-1 {
 			jobs[p].end = len(values)
 		}
-		wg.Add(1)
 		go func(p int) {
 			defer wg.Done()
 			j := jobs[p]
@@ -106,14 +101,16 @@ func Filter[T any](values []T, predicate func(T) bool) []T {
 		}(p)
 	}
 	wg.Wait()
+
 	var totalCount int
 	for p := range jobs {
 		jobs[p].offset = totalCount
 		totalCount += jobs[p].count
 	}
+
 	result := make([]T, totalCount)
+	wg.Add(partitions)
 	for p := range jobs {
-		wg.Add(1)
 		go func(p int) {
 			defer wg.Done()
 			j := jobs[p]
@@ -127,6 +124,7 @@ func Filter[T any](values []T, predicate func(T) bool) []T {
 		}(p)
 	}
 	wg.Wait()
+
 	return result
 }
 
@@ -148,11 +146,8 @@ func Reduce[T any](values []T, accumulator func(T, T) T) T {
 	if len(values) < 1 {
 		panic("cannot reduce an empty slice")
 	}
-	partitions := runtime.GOMAXPROCS(0)
-	if partitions > len(values) {
-		partitions = 1
-	}
-	partitionSize := len(values) / partitions
+
+	partitions, partitionSize := parts(values)
 	results := make(chan T)
 	for p := 0; p < partitions; p++ {
 		start := partitionSize * p
@@ -168,6 +163,7 @@ func Reduce[T any](values []T, accumulator func(T, T) T) T {
 			results <- v
 		}(start, end)
 	}
+
 	v := <-results
 	for p := 1; p < partitions; p++ {
 		v = accumulator(v, <-results)
@@ -185,11 +181,8 @@ func Any[T any](values []T, predicate func(T) bool) bool {
 	if len(values) == 0 {
 		return false
 	}
-	partitions := runtime.GOMAXPROCS(0)
-	if partitions > len(values) {
-		partitions = len(values)
-	}
-	partitionSize := len(values) / partitions
+
+	partitions, partitionSize := parts(values)
 	results := make(chan bool)
 	for p := 0; p < partitions; p++ {
 		start := partitionSize * p
@@ -207,6 +200,7 @@ func Any[T any](values []T, predicate func(T) bool) bool {
 			results <- false
 		}(start, end)
 	}
+
 	var found bool
 	for p := 0; p < partitions; p++ {
 		found = found || <-results
