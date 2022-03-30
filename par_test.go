@@ -402,8 +402,9 @@ func BenchmarkAll(b *testing.B) {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
 			result := true
 			for _, c := range collections {
-				if c.NumbersSum() != needle {
+				if c.NumbersSum() == needle {
 					result = false
+					break
 				}
 			}
 			r = result
@@ -415,7 +416,7 @@ func BenchmarkAll(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
 			r = par.All(collections, func(c Collection) bool {
-				return c.NumbersSum() == needle
+				return c.NumbersSum() != needle
 			})
 		}
 		deadBool = r
@@ -426,8 +427,9 @@ func BenchmarkAll(b *testing.B) {
 			needle := ^int(0)
 			result := true
 			for _, c := range collections {
-				if c.NumbersSum() != needle {
+				if c.NumbersSum() == needle {
 					result = false
+					break
 				}
 			}
 			r = result
@@ -439,7 +441,7 @@ func BenchmarkAll(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
 			r = par.All(collections, func(c Collection) bool {
-				return c.NumbersSum() == needle
+				return c.NumbersSum() != needle
 			})
 		}
 		deadBool = r
