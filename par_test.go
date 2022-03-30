@@ -256,28 +256,40 @@ func TestNone(t *testing.T) {
 	})
 }
 
+// deadBool is used for global assignment to prevent benchmark rounds from getting optimized out
+var deadBool bool
+
 func BenchmarkMap(b *testing.B) {
 	rand.Seed(1)
 	collections := CreateCollections(10000)
+
 	b.Run("serial", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			result := make([]int, len(collections))
 			for i, c := range collections {
 				result[i] = c.NumbersSum()
 			}
+			r = len(result) == 123
 		}
+		deadBool = r
 	})
 	b.Run("parallel", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
-			_ = par.Map(collections, Collection.NumbersSum)
+			result := par.Map(collections, Collection.NumbersSum)
+			r = len(result) == 123
 		}
+		deadBool = r
 	})
 }
 
 func BenchmarkFilter(b *testing.B) {
 	rand.Seed(1)
 	collections := CreateCollections(10000)
+
 	b.Run("serial", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			result := []Collection(nil)
 			for _, c := range collections {
@@ -285,31 +297,42 @@ func BenchmarkFilter(b *testing.B) {
 					result = append(result, c)
 				}
 			}
+			r = len(result) == 123
 		}
+		deadBool = r
 	})
 	b.Run("parallel", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
-			_ = par.Filter(collections, Collection.NumbersSumIsPositive)
+			result := par.Filter(collections, Collection.NumbersSumIsPositive)
+			r = len(result) == 123
 		}
+		deadBool = r
 	})
 }
 
 func BenchmarkReduce(b *testing.B) {
 	rand.Seed(1)
 	collections := CreateCollections(10000)
+
 	b.Run("serial", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			result := collections[0]
 			for _, c := range collections[1:] {
 				result = result.JoinSums(c)
 			}
-			_ = result
+			r = len(result.Numbers) == 123
 		}
+		deadBool = r
 	})
 	b.Run("parallel", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
-			_ = par.Reduce(collections, Collection.JoinSums)
+			result := par.Reduce(collections, Collection.JoinSums)
+			r = len(result.Numbers) == 123
 		}
+		deadBool = r
 	})
 }
 
@@ -318,6 +341,7 @@ func BenchmarkAny(b *testing.B) {
 	collections := CreateCollections(10000)
 
 	b.Run("serial with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
 			var result bool
@@ -327,18 +351,22 @@ func BenchmarkAny(b *testing.B) {
 					break
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
-			_ = par.Any(collections, func(c Collection) bool {
+			r = par.Any(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 	b.Run("serial without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
 			var result bool
@@ -348,16 +376,19 @@ func BenchmarkAny(b *testing.B) {
 					break
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
-			_ = par.Any(collections, func(c Collection) bool {
+			r = par.Any(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 }
 
@@ -366,6 +397,7 @@ func BenchmarkAll(b *testing.B) {
 	collections := CreateCollections(10000)
 
 	b.Run("serial with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
 			result := true
@@ -374,18 +406,22 @@ func BenchmarkAll(b *testing.B) {
 					result = false
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
-			_ = par.All(collections, func(c Collection) bool {
+			r = par.All(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 	b.Run("serial without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
 			result := true
@@ -394,16 +430,19 @@ func BenchmarkAll(b *testing.B) {
 					result = false
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
-			_ = par.All(collections, func(c Collection) bool {
+			r = par.All(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 }
 
@@ -412,6 +451,7 @@ func BenchmarkNone(b *testing.B) {
 	collections := CreateCollections(10000)
 
 	b.Run("serial with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
 			result := true
@@ -421,18 +461,22 @@ func BenchmarkNone(b *testing.B) {
 					break
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel with match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := collections[len(collections)*n/b.N].NumbersSum()
-			_ = par.None(collections, func(c Collection) bool {
+			r = par.None(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 	b.Run("serial without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
 			result := true
@@ -442,16 +486,19 @@ func BenchmarkNone(b *testing.B) {
 					break
 				}
 			}
-			_ = result
+			r = result
 		}
+		deadBool = r
 	})
 	b.Run("parallel without match", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
 			needle := ^int(0)
-			_ = par.None(collections, func(c Collection) bool {
+			r = par.None(collections, func(c Collection) bool {
 				return c.NumbersSum() == needle
 			})
 		}
+		deadBool = r
 	})
 }
 
