@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/jussi-kalliokoski/par"
 )
@@ -313,31 +314,33 @@ func BenchmarkReduce(b *testing.B) {
 	})
 }
 
+var result bool
+
 func BenchmarkAny(b *testing.B) {
+	rand.Seed(time.Now().Unix())
+	collections := CreateCollections(10000)
+	maxSum := CollectionsGetMaxSum(collections)
+
 	b.Run("serial", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
-			rand.Seed(int64(n))
-			collections := CreateCollections(10000)
-			maxSum := CollectionsGetMaxSum(collections)
-			var result bool
 			for _, c := range collections {
 				if c.NumbersSum() == maxSum {
-					result = true
+					r = true
 					break
 				}
 			}
-			_ = result
 		}
+		result = r
 	})
 	b.Run("parallel", func(b *testing.B) {
+		var r bool
 		for n := 0; n < b.N; n++ {
-			rand.Seed(int64(n))
-			collections := CreateCollections(10000)
-			maxSum := CollectionsGetMaxSum(collections)
-			_ = par.Any(collections, func(c Collection) bool {
+			r = par.Any(collections, func(c Collection) bool {
 				return c.NumbersSum() == maxSum
 			})
 		}
+		result = r
 	})
 }
 

@@ -184,29 +184,42 @@ func Any[T any](values []T, predicate func(T) bool) bool {
 	}
 
 	partitions, partitionSize := parts(values)
-	results := make(chan bool)
+
+	results := make(chan bool, partitions) // buffer to prevent processors from blocking.
+	done := make(chan struct{})
 	for p := 0; p < partitions; p++ {
 		start := partitionSize * p
 		end := start + partitionSize
 		if p == partitions-1 {
 			end = len(values)
 		}
-		go func(start, end int) {
+		go func() {
 			for i := start; i < end; i++ {
-				if predicate(values[i]) {
-					results <- true
+				select {
+				case <-done:
+					results <- false
 					return
+				default:
+					if predicate(values[i]) {
+						results <- true
+						return
+					}
 				}
 			}
 			results <- false
-		}(start, end)
+		}()
 	}
 
-	var found bool
+	// Ensure that all processing goroutines have exited otherwise we could trigger
+	// a data race in the caller due use of predicate or values after we return.
+	var result bool
 	for p := 0; p < partitions; p++ {
-		found = found || <-results
+		if <-results && !result {
+			close(done) // trigger early return of remaining processors.
+			result = true
+		}
 	}
-	return found
+	return result
 }
 
 // All returns a boolean indicating if predicate returns true for all of the
