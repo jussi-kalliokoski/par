@@ -16,6 +16,7 @@
 package par
 
 import (
+	"runtime"
 	"sync"
 )
 
@@ -226,4 +227,13 @@ func All[T any](values []T, predicate func(T) bool) bool {
 // every value.
 func None[T any](values []T, predicate func(T) bool) bool {
 	return !Any(values, predicate)
+}
+
+// parts returns the number of partitions and the size optimised for
+// the available CPUs and given values.
+func parts[In any](values []In) (count, size int) {
+	if p := runtime.GOMAXPROCS(0); p <= len(values) {
+		return p, len(values) / p
+	}
+	return len(values), 1
 }
